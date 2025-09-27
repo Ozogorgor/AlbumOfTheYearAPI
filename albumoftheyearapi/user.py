@@ -26,9 +26,15 @@ class UserMethods:
             self.__set_user_page(user, url)
 
         ratings_section = self.user_page.find(
-            href="/user/{}".format(self.user) + "/ratings/"
+            href=f"/user/{self.user}/ratings/"
         )
-        ratings = ratings_section.find(class_="profileStat").getText()
+        ratings_text = ratings_section.find(class_="profileStat").getText()
+        
+        try:
+            ratings = int(ratings_text.replace(",", "").strip())  # remove commas
+        except ValueError:
+            ratings = 0  # fallback if parsing fails
+
         return ratings
 
     def user_rating_count_json(self, user):
@@ -43,7 +49,13 @@ class UserMethods:
         reviews_section = self.user_page.find(
             href="/user/{}".format(self.user) + "/reviews/"
         )
-        reviews = reviews_section.find(class_="profileStat").getText()
+        reviews_text = reviews_section.find(class_="profileStat").getText()
+        
+        try:
+            reviews = int(reviews_text.replace(",", "").strip())  # remove commas
+        except ValueError:
+            reviews = 0  # fallback if parsing fails
+
         return reviews
 
     def user_review_count_json(self, user):
@@ -58,7 +70,13 @@ class UserMethods:
         lists_section = self.user_page.find(
             href="/user/{}".format(self.user) + "/lists/"
         )
-        lists = lists_section.find(class_="profileStat").getText()
+        lists_text = lists_section.find(class_="profileStat").getText()
+        
+        try:
+            lists = int(lists_text.replace(",", "").strip())  # remove commas
+        except ValueError:
+            lists = 0  # fallback if parsing fails
+            
         return lists
 
     def user_list_count_json(self, user):
@@ -73,7 +91,13 @@ class UserMethods:
         followers_section = self.user_page.find(
             href="/user/{}".format(self.user) + "/followers/"
         )
-        followers = followers_section.find(class_="profileStat").getText()
+        followers_text = followers_section.find(class_="profileStat").getText()
+        
+        try:
+            followers = int(followers_text.replace(",", "").strip())  # remove commas
+        except ValueError:
+            followers = 0  # fallback if parsing fails
+            
         return followers
 
     def user_follower_count_json(self, user):
@@ -139,28 +163,126 @@ class UserMethods:
 
         return json.dumps(user_rating_distribution_JSON)
 
-    def user_ratings(self, user):
-        url = self.user_url + user
-        if self.url != url:
+    def user_ratings(self, user, page=1):
+        """Returns a list of the user's ratings on a given page"""
+        url = self.user_url + f"{user}/ratings/{page}/"
+        self.__set_user_page(user, url)
+
+        ratings = self.user_page.find_all(class_="albumBlock")
+        result = []
+        for entry in ratings:
+            artist = (
+                entry.find(class_="artistTitle")
+                .getText()
+                .encode("ascii", "ignore")
+                .decode()
+            )
+            album = (
+                entry.find(class_="albumTitle")
+                .getText()
+                .encode("ascii", "ignore")
+                .decode()
+            )
+            rating = (
+                entry.find(class_="rating")
+                .getText()
+                .encode("ascii", "ignore")
+                .decode()
+                .strip()
+            )
+            result.append({"artist": artist, "album": album, "rating": rating})
+
+        return result
+
+    def user_ratings_json(self, user, page=1):
+        ratings_JSON = {"ratings": self.user_ratings(user, page)}
+        return json.dumps(ratings_JSON)
+    
+    def user_ratings_all(self, user, max_pages=None):
+        """
+        Returns all ratings across multiple pages for the user.
+        If max_pages is set, only fetches up to that many pages.
+        Prevents infinite loop by checking for duplicate/redirected pages.
+        """
+        all_ratings = []
+        seen_pages = set()
+        page = 1
+
+        while True:
+            if max_pages and page > max_pages:
+                break
+
+            url = self.user_url + f"{user}/ratings/{page}/"
             self.__set_user_page(user, url)
 
-        return self.user_page.find(class_="albumBlock").getText()
+            ratings = self.user_page.find_all(class_="albumBlock")
+            if not ratings:  # stop when no more ratings are found
+                break
 
-    def user_ratings_json(self, user):
-        ratings_JSON = {"ratings": self.user_ratings(user)}
-        return json.dumps(ratings_JSON)
+            # Use first album on page as a "fingerprint" to detect repeats
+            first_album = ratings[0].getText(strip=True)
+            if first_album in seen_pages:
+                # We've looped back to an earlier page (redirected), stop here
+                break
+            seen_pages.add(first_album)
+
+            for entry in ratings:
+                artist = (
+                    entry.find(class_="artistTitle")
+                    .getText()
+                    .encode("ascii", "ignore")
+                    .decode()
+                )
+                album = (
+                    entry.find(class_="albumTitle")
+                    .getText()
+                    .encode("ascii", "ignore")
+                    .decode()
+                )
+                rating = (
+                    entry.find(class_="rating")
+                    .getText()
+                    .encode("ascii", "ignore")
+                    .decode()
+                    .strip()
+                )
+                all_ratings.append({"artist": artist, "album": album, "rating": rating})
+
+            page += 1
+
+        return all_ratings
+
 
     def user_perfect_scores(self, user):
-        """Returns a list of the users perfect scores"""
-
+        """Returns a list of the user's perfect score albums as structured data"""
         url = self.user_url + user + "/ratings/perfect/"
         if self.url != url:
             self.__set_user_page(user, url)
 
-        perfect_scores = self.user_page.find(class_="albumBlock")
-        if perfect_scores == None:
-            return ""
-        return perfect_scores.getText()
+        albums = self.user_page.find_all(class_="albumBlock")
+        if not albums:
+            return []
+
+        result = []
+        for entry in albums:
+            artist = (
+                entry.find(class_="artistTitle")
+                .getText()
+                .encode("ascii", "ignore")
+                .decode()
+            )
+            album = (
+                entry.find(class_="albumTitle")
+                .getText()
+                .encode("ascii", "ignore")
+                .decode()
+            )
+            result.append({
+                "artist": artist,
+                "album": album,
+            })
+
+        return result
 
     def user_perfect_scores_json(self, user):
         """Returns a list of the users perfect scores in JSON format"""
@@ -184,15 +306,14 @@ class UserMethods:
                 .getText()
                 .encode("ascii", "ignore")
                 .decode()
-            )  # Gets rid of weird characters
+            )
             album = (
                 entry.find(class_="albumTitle")
                 .getText()
                 .encode("ascii", "ignore")
                 .decode()
             )
-            combined = artist + ": " + album
-            result.append(combined)
+            result.append({"artist": artist, "album": album})
 
         return result
 

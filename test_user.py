@@ -3,10 +3,13 @@ import pytest
 from albumoftheyearapi import AOTY
 from albumoftheyearapi.user import UserMethods
 
+@pytest.fixture(scope="module")
+def client():
+    return AOTY()
+
 @pytest.fixture
 def user():
     return "doublez"
-
 
 @pytest.mark.first
 def test_initialize():
@@ -74,16 +77,23 @@ def test_get_rating_distribution_json(user):
     user_rating_distribution_json = pytest.client.user_rating_distribution(user)
     assert user_rating_distribution_json != null
 
-
-def test_get_user_ratings(user):
-    user_ratings = pytest.client.user_ratings(user)
-    assert user_ratings != null
-
+def test_get_user_ratings(client, user):
+    # Single page ratings
+    user_ratings = client.user_ratings(user, page=2)
+    assert user_ratings is not None
+    assert isinstance(user_ratings, list)
+    assert len(user_ratings) > 0
 
 def test_get_user_ratings_json(user):
     user_ratings_json = pytest.client.user_ratings(user)
     assert user_ratings_json != null
-
+    
+def test_get_user_ratings_all(client, user):
+    # Limit pages to 2 to keep test fast
+    user_ratings_all = client.user_ratings_all(user, max_pages=2)
+    assert user_ratings_all is not None
+    assert isinstance(user_ratings_all, list)
+    assert len(user_ratings_all) > 0
 
 def test_get_user_perfect_scores(user):
     perfect_scores = pytest.client.user_perfect_scores(user)
@@ -120,6 +130,7 @@ if __name__ == "__main__":
     print("About\n", AlbumWrapper.user_about(user), "\n")
     print("Rating distribution\n", AlbumWrapper.user_rating_distribution(user), "\n")
     print("Ratings\n", AlbumWrapper.user_ratings(user), "\n")
+    print("Ratings\n", AlbumWrapper.user_ratings_all(user, 3), "\n")
     print("Perfect scores\n", AlbumWrapper.user_perfect_scores(user), "\n")
     print("Liked music\n", AlbumWrapper.user_liked_music(user), "\n")
 
