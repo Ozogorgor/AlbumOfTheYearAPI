@@ -5,6 +5,7 @@
 - [Artist Methods](#artist-methods)
 - [Album Methods](#album-methods)
 - [User Methods](#user-methods)
+- [Genre Methods](#genre-methods)
 
 ## Artist Methods
 
@@ -76,6 +77,27 @@ EX: 589-the-strokes
 <br>Parameters:
 
 - artist - artist id
+
+`artist_live_albums(artist, as_json=False)`
+<br>Returns a list of all live albums by an artist
+<br>Parameters:
+
+- artist - artist id
+- as_json (bool, optional): If True, returns the result as a JSON string. Defaults to False.
+
+`artist_compilations(artist, as_json=False)`
+<br>Returns a list of all compilations by an artist
+<br>Parameters:
+
+- artist - artist id
+- as_json (bool, optional): If True, returns the result as a JSON string. Defaults to False.
+
+`artist_appears_on(artist, as_json=False)`
+<br>Returns a list of albums the artist appears on
+<br>Parameters:
+
+- artist - artist id
+- as_json (bool, optional): If True, returns the result as a JSON string. Defaults to False.
 
 `similar_artists(artist)`
 <br>Returns a list of similar artists to the given artist
@@ -168,3 +190,55 @@ EX: 589-the-strokes
 <br>Parameters:
 
 - user - username
+
+`user_reviews(user, page=1, as_json=False)`
+<br>Returns a list of the user's reviews from a single reviews page. Each entry contains the artist, album, rating, and review text (may be truncated for long reviews).
+<br>Parameters:
+
+- user (str): The username to fetch reviews for.
+- page (int, optional): Which reviews page to fetch. Defaults to 1.
+- as_json (bool, optional): If True, returns the result as a JSON string. Defaults to False.
+
+## Genre Methods
+
+A genre can be passed as a friendly name (e.g. `"rock"`) or as a raw slug from the URL (e.g. `"7-rock"`).
+Friendly names are resolved via `GENRE_MAP`, which can be imported directly if needed:
+
+```python
+from albumoftheyearapi.genre import GENRE_MAP
+```
+
+The `year` parameter accepts a 4-digit year (`2026`), a decade (`"2020s"`), `"all"` for all-time rankings, or `None` to default to the current calendar year.
+
+`genre_albums(genre, year=None)`
+<br>Returns a ranked list of albums for the given genre and time period.
+<br>Each album in the list is a dict with the following keys:
+
+- `rank` (str) — chart position, e.g. `"1"`
+- `rank` (str) — chart position, e.g. `"1"`
+- `name` (str) — album title as shown on the site
+- `date` (str) — release date, e.g. `"February 6, 2026"`
+- `score` (int or None) — critic score, e.g. `91`
+- `review_count` (int or None) — number of reviews, e.g. `34`
+
+Parameters:
+
+- genre (str): Friendly name (e.g. `"rock"`) or raw URL slug (e.g. `"7-rock"`). See shorthands below.
+- year (str or int, optional): Year, decade, `"all"`, or `None` for the current year.
+
+`genre_albums_json(genre, year=None)`
+<br>Returns the same data as `genre_albums` serialised as a JSON string, under the key `"albums"`.
+<br>Parameters:
+
+- genre (str): Friendly name (e.g. `"rock"`) or raw URL slug (e.g. `"7-rock"`). See shorthands below.
+- year (str or int, optional): Year, decade, `"all"`, or `None` for the current year.
+
+### Genre shorthands
+
+| Friendly name  | URL slug         |
+| -------------- | ---------------- |
+| `"indie rock"` | `"1-indie-rock"` |
+| `"electronic"` | `"6-electronic"` |
+| `"rock"`       | `"7-rock"`       |
+| `"pop"`        | `"15-pop"`       |
+| `"metal"`      | `"40-metal"`     |

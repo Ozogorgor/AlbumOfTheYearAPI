@@ -52,11 +52,11 @@ class UserMethods:
         reviews_text = reviews_section.find(class_="profileStat").getText()
         
         try:
-            reviews = int(reviews_text.replace(",", "").strip())  # remove commas
+            review_count = int(reviews_text.replace(",", "").strip())  # remove commas
         except ValueError:
-            reviews = 0  # fallback if parsing fails
+            review_count = 0  # fallback if parsing fails
 
-        return reviews
+        return review_count
 
     def user_review_count_json(self, user):
         reviews_JSON = {"reviews": self.user_review_count(user)}
@@ -109,7 +109,8 @@ class UserMethods:
         if self.url != url:
             self.__set_user_page(user, url)
 
-        about = self.user_page.find(class_="aboutUser").getText()
+        about_tag = self.user_page.find(class_="aboutUser")
+        about = about_tag.getText() if about_tag else None
         return about
 
     def user_about_json(self, user):
@@ -131,14 +132,10 @@ class UserMethods:
             )
             if i == 0 or i == 10:
                 rating = rating[3:]
-                if rating == "":
-                    rating = 0
-                user_rating_distribution.append(rating)
             else:
                 rating = rating[5:]
-                if rating == "":
-                    rating = 0
-                user_rating_distribution.append(rating)
+            rating = rating.replace("\xa0", "").replace(",", "").strip()
+            user_rating_distribution.append(int(rating) if rating else 0)
 
         return user_rating_distribution
 
@@ -222,20 +219,14 @@ class UserMethods:
                 artist = (
                     entry.find(class_="artistTitle")
                     .getText()
-                    .encode("ascii", "ignore")
-                    .decode()
                 )
                 album = (
                     entry.find(class_="albumTitle")
                     .getText()
-                    .encode("ascii", "ignore")
-                    .decode()
                 )
                 rating = (
                     entry.find(class_="rating")
                     .getText()
-                    .encode("ascii", "ignore")
-                    .decode()
                     .strip()
                 )
                 all_ratings.append({"artist": artist, "album": album, "rating": rating})
@@ -306,3 +297,60 @@ class UserMethods:
 
         liked_music_json = {"liked music": self.user_liked_music(user)}
         return json.dumps(liked_music_json)
+
+    def user_favorites(self, user):
+        """Returns a list of the user's favorite albums from their profile page"""
+        url = self.user_url + user
+        if self.url != url:
+            self.__set_user_page(user, url)
+
+        fav_block = self.user_page.find(id="favBlock")
+        if not fav_block:
+            return []
+
+        result = []
+        for entry in fav_block.find_all(class_="albumBlock"):
+            artist_tag = entry.find(class_="artistTitle")
+            album_tag = entry.find(class_="albumTitle")
+            if artist_tag and album_tag:
+                result.append({
+                    "artist": artist_tag.getText(),
+                    "album": album_tag.getText(),
+                })
+
+        return result
+
+    def user_favorites_json(self, user):
+        """Returns a list of the user's favorite albums in JSON format"""
+        favorites_json = {"favorites": self.user_favorites(user)}
+        return json.dumps(favorites_json)
+
+    def user_reviews(self, user, page=1, as_json=False):
+        """Returns a list of the user's reviews on a given page, each with artist, album, rating, and review text"""
+        url = self.user_url + f"{user}/reviews/{page}/"
+        self.__set_user_page(user, url)
+
+        entries = self.user_page.find_all(class_="albumReviewRow")
+        result = []
+        for entry in entries:
+            artist = entry.find(class_="artistTitle").getText()
+            album = entry.find(class_="albumTitle").getText()
+            rating_tag = entry.find(class_="rating")
+            rating = rating_tag.getText().strip() if rating_tag else ""
+            review_div = entry.find(class_="albumReviewText")
+            review_text = review_div.get_text(separator="\n", strip=True) if review_div else ""
+            
+            # Strip button UI artifact
+            if review_text.endswith("\nread more"):
+                review_text = review_text[:-len("\nread more")]
+                
+            result.append({
+                "artist": artist,
+                "album": album,
+                "rating": rating,
+                "review": review_text,
+            })
+
+        if as_json:
+            return json.dumps({"reviews": result})
+        return result
