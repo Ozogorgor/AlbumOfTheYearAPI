@@ -298,6 +298,33 @@ class UserMethods:
         liked_music_json = {"liked music": self.user_liked_music(user)}
         return json.dumps(liked_music_json)
 
+    def user_favorites(self, user):
+        """Returns a list of the user's favorite albums from their profile page"""
+        url = self.user_url + user
+        if self.url != url:
+            self.__set_user_page(user, url)
+
+        fav_block = self.user_page.find(id="favBlock")
+        if not fav_block:
+            return []
+
+        result = []
+        for entry in fav_block.find_all(class_="albumBlock"):
+            artist_tag = entry.find(class_="artistTitle")
+            album_tag = entry.find(class_="albumTitle")
+            if artist_tag and album_tag:
+                result.append({
+                    "artist": artist_tag.getText(),
+                    "album": album_tag.getText(),
+                })
+
+        return result
+
+    def user_favorites_json(self, user):
+        """Returns a list of the user's favorite albums in JSON format"""
+        favorites_json = {"favorites": self.user_favorites(user)}
+        return json.dumps(favorites_json)
+
     def user_reviews(self, user, page=1, as_json=False):
         """Returns a list of the user's reviews on a given page, each with artist, album, rating, and review text"""
         url = self.user_url + f"{user}/reviews/{page}/"

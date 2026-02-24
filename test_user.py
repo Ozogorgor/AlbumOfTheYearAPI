@@ -104,6 +104,22 @@ def test_get_user_perfect_scores_json(user):
     assert perfect_scores_json != null
 
 
+def test_get_user_favorites(client, user):
+    favorites = client.user_favorites(user)
+    assert favorites is not None
+    assert isinstance(favorites, list)
+
+
+def test_get_user_favorites_json(client, user):
+    import json
+    favorites_json = client.user_favorites_json(user)
+    assert favorites_json is not None
+    assert isinstance(favorites_json, str)
+    parsed = json.loads(favorites_json)
+    assert "favorites" in parsed
+    assert isinstance(parsed["favorites"], list)
+
+
 def test_get_user_liked_music(user):
     liked_music = pytest.client.user_liked_music(user)
     assert liked_music != null
@@ -142,7 +158,7 @@ def test_functions_without_wrapper(user):
     print(client.user_rating_count(user))
 
 if __name__ == "__main__":
-    user = "doublez"
+    user = "ma31n"
     AlbumWrapper = AOTY()
 
     print("Number of ratings\n", AlbumWrapper.user_rating_count(user), "\n")
@@ -156,6 +172,7 @@ if __name__ == "__main__":
     print("Perfect scores\n", AlbumWrapper.user_perfect_scores(user), "\n")
     print("Liked music\n", AlbumWrapper.user_liked_music(user), "\n")
     print("Reviews\n", AlbumWrapper.user_reviews(user), "\n")
+    print("User Favorites\n", AlbumWrapper.user_favorites(user), "\n")
 
     print("JSON VERSION")
     print("Number of ratings\n", AlbumWrapper.user_rating_count_json(user), "\n")
@@ -170,5 +187,6 @@ if __name__ == "__main__":
     print("Perfect scores\n", AlbumWrapper.user_perfect_scores_json(user), "\n")
     print("Liked music\n", AlbumWrapper.user_liked_music_json(user), "\n")
     print("Reviews (JSON)\n", AlbumWrapper.user_reviews(user, as_json=True), "\n")
+    print("User Favorites (JSON)\n", AlbumWrapper.user_favorites_json(user), "\n")
 
     pytest.main
