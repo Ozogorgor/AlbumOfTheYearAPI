@@ -77,6 +77,27 @@ EX: 589-the-strokes
 
 - artist - artist id
 
+`artist_live_albums(artist, as_json=False)`
+<br>Returns a list of all live albums by an artist
+<br>Parameters:
+
+- artist - artist id
+- as_json (bool, optional): If True, returns the result as a JSON string. Defaults to False.
+
+`artist_compilations(artist, as_json=False)`
+<br>Returns a list of all compilations by an artist
+<br>Parameters:
+
+- artist - artist id
+- as_json (bool, optional): If True, returns the result as a JSON string. Defaults to False.
+
+`artist_appears_on(artist, as_json=False)`
+<br>Returns a list of albums the artist appears on
+<br>Parameters:
+
+- artist - artist id
+- as_json (bool, optional): If True, returns the result as a JSON string. Defaults to False.
+
 `similar_artists(artist)`
 <br>Returns a list of similar artists to the given artist
 <br>Parameters:
@@ -168,3 +189,11 @@ EX: 589-the-strokes
 <br>Parameters:
 
 - user - username
+
+`user_reviews(user, page=1, as_json=False)`
+<br>Returns a list of the user's reviews from a single reviews page. Each entry contains the artist, album, rating, and review text (may be truncated for long reviews).
+<br>Parameters:
+
+- user (str): The username to fetch reviews for.
+- page (int, optional): Which reviews page to fetch. Defaults to 1.
+- as_json (bool, optional): If True, returns the result as a JSON string. Defaults to False.

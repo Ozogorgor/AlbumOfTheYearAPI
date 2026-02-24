@@ -125,6 +125,36 @@ def test_get_artist_top_songs_json(artist):
     assert artist_top_songs_json != null
 
 
+def test_get_artist_live_albums(artist):
+    artist_live_albums = pytest.client.artist_live_albums(artist)
+    assert artist_live_albums != null
+
+
+def test_get_artist_live_albums_json(artist):
+    artist_live_albums_json = pytest.client.artist_live_albums(artist, as_json=True)
+    assert artist_live_albums_json != null
+
+
+def test_get_artist_compilations(artist):
+    artist_compilations = pytest.client.artist_compilations(artist)
+    assert artist_compilations != null
+
+
+def test_get_artist_compilations_json(artist):
+    artist_compilations_json = pytest.client.artist_compilations(artist, as_json=True)
+    assert artist_compilations_json != null
+
+
+def test_get_artist_appears_on(artist):
+    artist_appears_on = pytest.client.artist_appears_on(artist)
+    assert artist_appears_on != null
+
+
+def test_get_artist_appears_on_json(artist):
+    artist_appears_on_json = pytest.client.artist_appears_on(artist, as_json=True)
+    assert artist_appears_on_json != null
+
+
 def test_get_similar_artists(artist):
     similar_artists = pytest.client.similar_artists(artist)
     assert similar_artists != null
@@ -162,6 +192,9 @@ if __name__ == "__main__":
     print("Follower Count\n", AlbumWrapper.artist_follower_count(artist), "\n")
     print("Artist Details\n", AlbumWrapper.artist_details(artist), "\n")
     print("Top Songs\n", AlbumWrapper.artist_top_songs(artist), "\n")
+    print("Live Albums\n", AlbumWrapper.artist_live_albums(artist), "\n")
+    print("Compilations\n", AlbumWrapper.artist_compilations(artist), "\n")
+    print("Appears On\n", AlbumWrapper.artist_appears_on(artist), "\n")
     print("Similar Artists\n", AlbumWrapper.similar_artists(artist), "\n")
 
     pytest.main

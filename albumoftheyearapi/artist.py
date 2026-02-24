@@ -61,10 +61,10 @@ class ArtistMethods:
         self.albums = categorized_albums.get('Albums', [])
         self.mixtapes = categorized_albums.get('Mixtapes', [])
         self.eps = categorized_albums.get('EPs', [])
-        # self.live_albums = categorized_albums.get('Live Albums', []) # UNUSED
-        # self.compilations = categorized_albums.get('Compilations', []) # UNUSED
+        self.live_albums = categorized_albums.get('Live Albums', [])
+        self.compilations = categorized_albums.get('Compilations', [])
         self.singles = categorized_albums.get('SinglesView All', [])
-        # self.appears_on = categorized_albums.get('Appears OnView All', []) # UNUSED
+        self.appears_on = categorized_albums.get('Appears OnView All', [])
         self.similar_artists_cat = categorized_albums.get('Similar Artists', [])
 
     def __get_community_data(self, artist):
@@ -122,6 +122,33 @@ class ArtistMethods:
     def artist_eps_json(self, artist):
         eps_JSON = {"eps": self.artist_eps(artist)}
         return json.dumps(eps_JSON)
+
+    def artist_live_albums(self, artist, as_json=False):
+        url = self.artist_url + artist + "/"
+        if self.url != url:
+            self.__set_artist_page(artist, url)
+
+        if as_json:
+            return json.dumps({"live albums": self.live_albums})
+        return self.live_albums
+
+    def artist_compilations(self, artist, as_json=False):
+        url = self.artist_url + artist + "/"
+        if self.url != url:
+            self.__set_artist_page(artist, url)
+
+        if as_json:
+            return json.dumps({"compilations": self.compilations})
+        return self.compilations
+
+    def artist_appears_on(self, artist, as_json=False):
+        url = self.artist_url + artist + "/"
+        if self.url != url:
+            self.__set_artist_page(artist, url)
+
+        if as_json:
+            return json.dumps({"appears on": self.appears_on})
+        return self.appears_on
 
     def artist_singles(self, artist):
         url = self.artist_url + artist + "/"

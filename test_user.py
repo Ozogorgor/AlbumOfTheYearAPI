@@ -29,13 +29,13 @@ def test_get_user_rating_count_json(user):
 
 
 def test_get_review_count(user):
-    user_reviews = pytest.client.user_review_count(user)
-    assert user_reviews != null
+    user_review_count = pytest.client.user_review_count(user)
+    assert user_review_count != null
 
 
 def test_get_review_count_json(user):
-    user_reviews_json = pytest.client.user_review_count(user)
-    assert user_reviews_json != null
+    user_review_count_json = pytest.client.user_review_count_json(user)
+    assert user_review_count_json != null
 
 
 def test_get_list_count(user):
@@ -99,7 +99,6 @@ def test_get_user_perfect_scores(user):
     perfect_scores = pytest.client.user_perfect_scores(user)
     assert perfect_scores != null
 
-
 def test_get_user_perfect_scores_json(user):
     perfect_scores_json = pytest.client.user_perfect_scores(user)
     assert perfect_scores_json != null
@@ -113,6 +112,29 @@ def test_get_user_liked_music(user):
 def test_get_user_liked_music_json(user):
     liked_music_json = pytest.client.user_liked_music(user)
     assert liked_music_json != null
+
+
+def test_get_user_reviews(client, user):
+    reviews = client.user_reviews(user, page=1)
+    assert reviews is not None
+    assert isinstance(reviews, list)
+    assert len(reviews) > 0
+    first = reviews[0]
+    assert "artist" in first
+    assert "album" in first
+    assert "rating" in first
+    assert "review" in first
+
+
+def test_get_user_reviews_json(client, user):
+    import json
+    reviews_json = client.user_reviews(user, as_json=True)
+    assert reviews_json is not None
+    assert isinstance(reviews_json, str)
+    parsed = json.loads(reviews_json)
+    assert "reviews" in parsed
+    assert isinstance(parsed["reviews"], list)
+
 
 def test_functions_without_wrapper(user):
     # Test single function wihout main wrapper
@@ -133,6 +155,7 @@ if __name__ == "__main__":
     print("Ratings\n", AlbumWrapper.user_ratings_all(user, 3), "\n")
     print("Perfect scores\n", AlbumWrapper.user_perfect_scores(user), "\n")
     print("Liked music\n", AlbumWrapper.user_liked_music(user), "\n")
+    print("Reviews\n", AlbumWrapper.user_reviews(user), "\n")
 
     print("JSON VERSION")
     print("Number of ratings\n", AlbumWrapper.user_rating_count_json(user), "\n")
@@ -146,5 +169,6 @@ if __name__ == "__main__":
     print("Ratings\n", AlbumWrapper.user_ratings_json(user), "\n")
     print("Perfect scores\n", AlbumWrapper.user_perfect_scores_json(user), "\n")
     print("Liked music\n", AlbumWrapper.user_liked_music_json(user), "\n")
+    print("Reviews (JSON)\n", AlbumWrapper.user_reviews(user, as_json=True), "\n")
 
     pytest.main
