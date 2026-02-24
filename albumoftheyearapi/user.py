@@ -109,7 +109,8 @@ class UserMethods:
         if self.url != url:
             self.__set_user_page(user, url)
 
-        about = self.user_page.find(class_="aboutUser").getText()
+        about_tag = self.user_page.find(class_="aboutUser")
+        about = about_tag.getText() if about_tag else None
         return about
 
     def user_about_json(self, user):
