@@ -134,6 +134,13 @@ def test_get_similar_artists_json(artist):
     similar_artists_json = pytest.client.similar_artists_json(artist)
     assert similar_artists_json != null
     
+def test_artist_albums_unicode():
+    """Album names with special characters must not be stripped."""
+    # Sigur Rós have non-ASCII chars in both their name and album titles
+    albums = pytest.client.artist_albums("308-sigur-ros")
+    assert "Ágætis byrjun" in albums
+
+
 def test_functions_without_wrapper(artist):
     # Test single function wihout main wrapper
     client = ArtistMethods()

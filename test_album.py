@@ -1,5 +1,5 @@
 from sqlalchemy import null
-from albumoftheyearapi import AOTY
+from albumoftheyearapi import AOTY, album
 import pytest, json, datetime
 
 

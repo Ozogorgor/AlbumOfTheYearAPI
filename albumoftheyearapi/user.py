@@ -128,8 +128,6 @@ class UserMethods:
             rating = (
                 user_rating_distribution_tags[i]
                 .getText()
-                .encode("ascii", "ignore")
-                .decode()
             )
             if i == 0 or i == 10:
                 rating = rating[3:]
@@ -174,20 +172,14 @@ class UserMethods:
             artist = (
                 entry.find(class_="artistTitle")
                 .getText()
-                .encode("ascii", "ignore")
-                .decode()
             )
             album = (
                 entry.find(class_="albumTitle")
                 .getText()
-                .encode("ascii", "ignore")
-                .decode()
             )
             rating = (
                 entry.find(class_="rating")
                 .getText()
-                .encode("ascii", "ignore")
-                .decode()
                 .strip()
             )
             result.append({"artist": artist, "album": album, "rating": rating})
@@ -268,14 +260,10 @@ class UserMethods:
             artist = (
                 entry.find(class_="artistTitle")
                 .getText()
-                .encode("ascii", "ignore")
-                .decode()
             )
             album = (
                 entry.find(class_="albumTitle")
                 .getText()
-                .encode("ascii", "ignore")
-                .decode()
             )
             result.append({
                 "artist": artist,
@@ -304,14 +292,10 @@ class UserMethods:
             artist = (
                 entry.find(class_="artistTitle")
                 .getText()
-                .encode("ascii", "ignore")
-                .decode()
             )
             album = (
                 entry.find(class_="albumTitle")
                 .getText()
-                .encode("ascii", "ignore")
-                .decode()
             )
             result.append({"artist": artist, "album": album})
 

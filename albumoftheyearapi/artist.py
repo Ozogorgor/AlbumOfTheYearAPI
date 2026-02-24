@@ -49,23 +49,23 @@ class ArtistMethods:
                 # Similar Artists is structured differently
                 album_title_div = element.find("div", class_="name")
                 if album_title_div:
-                    album_name = album_title_div.get_text().encode("ascii", "ignore").decode().strip()
+                    album_name = album_title_div.get_text().strip()
                     categorized_albums[current_category].append(album_name)
             elif element.name == "div" and current_category:
                 # For each category, loop through all divs to find the album title
                 album_title_div = element.find("div", class_="albumTitle")
                 if album_title_div:
-                    album_name = album_title_div.get_text().encode("ascii", "ignore").decode().strip()
+                    album_name = album_title_div.get_text().strip()
                     categorized_albums[current_category].append(album_name)
                 
-        self.albums = categorized_albums['Albums']
-        self.mixtapes = categorized_albums['Mixtapes']
-        self.eps = categorized_albums['EPs']
-        # self.live_albums = categorized_albums['Live Albums'] # UNUSED
-        # self.compilations = categorized_albums['Compilations'] # UNUSED
-        self.singles = categorized_albums['SinglesView All']
-        # self.appears_on = categorized_albums['Appears OnView All'] # UNUSED
-        self.similar_artists_cat = categorized_albums['Similar Artists']
+        self.albums = categorized_albums.get('Albums', [])
+        self.mixtapes = categorized_albums.get('Mixtapes', [])
+        self.eps = categorized_albums.get('EPs', [])
+        # self.live_albums = categorized_albums.get('Live Albums', []) # UNUSED
+        # self.compilations = categorized_albums.get('Compilations', []) # UNUSED
+        self.singles = categorized_albums.get('SinglesView All', [])
+        # self.appears_on = categorized_albums.get('Appears OnView All', []) # UNUSED
+        self.similar_artists_cat = categorized_albums.get('Similar Artists', [])
 
     def __get_community_data(self, artist):
         url = self.artist_url + artist + "/"
