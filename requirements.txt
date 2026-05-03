@@ -1,3 +1,6 @@
+fastapi
+uvicorn
 beautifulsoup4
 requests
 psycopg2-binary
+python-dotenv
