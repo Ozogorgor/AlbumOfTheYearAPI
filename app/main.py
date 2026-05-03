@@ -211,52 +211,61 @@ async def batch_artists(
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
-@app.get("/lookup/mb/{mb_artist_id}")
-async def lookup_mb_artist(
-    mb_artist_id: str,
+@app.get("/lookup/mb/{mb_id}")
+async def lookup_mb_id(
+    mb_id: str,
+    type: str = "artist",
     x_api_key: Optional[str] = Header(None)
 ):
-    """Lookup MusicBrainz artist ID → AOTY slug using MB url-rels"""
+    """Lookup MusicBrainz ID → AOTY slug (supports artist + album)"""
     await verify_api_key(x_api_key)
     
-    cache_key = f"mb_lookup:{mb_artist_id}"
+    cache_key = f"mb_lookup:{mb_id}:{type}"
     cached = await get_cached(cache_key)
     if cached:
         return cached
     
     try:
-        # Strategy (a): Check MusicBrainz url-rels for AOTY URL
-        import httpx
-        mb_url = f"https://musicbrainz.org/ws/2/artist/{mb_artist_id}?fmt=json&inc=url-rels"
+        # Query MusicBrainz API
+        mb_url = f"https://musicbrainz.org/ws/2/{type}/{mb_id}?fmt=json&inc=url-rels"
         resp = await run_in_threadpool(
             lambda: httpx.get(mb_url, headers={"User-Agent": "AOTYScraper/1.0"})
         )
         
-        result = {"mb_artist_id": mb_artist_id, "aoty_slug": None, "source": None}
+        result = {"mb_id": mb_id, "type": type, "aoty_slug": None, "name": None, "source": None}
         
         if resp.status_code == 200:
             data = resp.json()
+            result["name"] = data.get("name") or data.get("title")
+            
             # Search for AOTY URL in relations
             for rel in data.get("relations", []):
                 url = rel.get("url", {}).get("resource", "")
-                if "albumoftheyear.org/artist/" in url:
-                    # Extract slug from URL
-                    slug = url.split("/artist/")[-1].strip("/")
-                    result["aoty_slug"] = slug
-                    result["source"] = "musicbrainz_url-rel"
-                    break
+                if "albumoftheyear.org" in url:
+                    if type == "artist" and "/artist/" in url:
+                        result["aoty_slug"] = url.split("/artist/")[-1].strip("/")
+                        result["source"] = "musicbrainz_url-rel"
+                        break
+                    elif type in ["release", "release-group"] and "/album/" in url:
+                        result["aoty_slug"] = url.split("/album/")[-1].strip("/")
+                        result["source"] = "musicbrainz_url-rel"
+                        break
             
-            # If not found, try MB mapping table
+            # Fallback to mapping table
             if not result["aoty_slug"] and DATABASE_URL:
                 try:
                     conn = get_db_conn()
                     cur = conn.cursor()
-                    cur.execute("SELECT aoty_slug FROM mb_aoty_mapping WHERE mb_artist_id = %s", (mb_artist_id,))
+                    cur.execute(
+                        "SELECT aoty_slug, name FROM mb_aoty_mapping WHERE mb_id = %s AND type = %s",
+                        (mb_id, type)
+                    )
                     row = cur.fetchone()
                     cur.close()
                     conn.close()
                     if row:
                         result["aoty_slug"] = row[0]
+                        result["name"] = row[1] or result["name"]
                         result["source"] = "mapping_table"
                 except Exception as e:
                     print(f"Mapping lookup error: {e}")
@@ -274,83 +283,83 @@ async def get_artist_by_mb(
     mb_artist_id: str,
     x_api_key: Optional[str] = Header(None)
 ):
-    """Get AOTY artist data directly from MusicBrainz ID"""
+    """Get AOTY artist data directly from MusicBrainz artist ID"""
     await verify_api_key(x_api_key)
     
     # First lookup AOTY slug
-    cache_key = f"mb_lookup:{mb_artist_id}"
-    cached = await get_cached(cache_key)
+    lookup = await lookup_mb_id(mb_artist_id, "artist", x_api_key)
     
-    if cached and cached.get("aoty_slug"):
-        aoty_slug = cached["aoty_slug"]
-    else:
-        # Lookup from MB
-        import httpx
-        mb_url = f"https://musicbrainz.org/ws/2/artist/{mb_artist_id}?fmt=json&inc=url-rels"
-        resp = await run_in_threadpool(
-            lambda: httpx.get(mb_url, headers={"User-Agent": "AOTYScraper/1.0"})
-        )
-        
-        aoty_slug = None
-        if resp.status_code == 200:
-            data = resp.json()
-            for rel in data.get("relations", []):
-                url = rel.get("url", {}).get("resource", "")
-                if "albumoftheyear.org/artist/" in url:
-                    aoty_slug = url.split("/artist/")[-1].strip("/")
-                    break
-        
-        if not aoty_slug:
-            raise HTTPException(status_code=404, detail="AOTY slug not found for this MB ID")
+    if not lookup.get("aoty_slug"):
+        raise HTTPException(status_code=404, detail="AOTY slug not found for this MB ID")
+    
+    aoty_slug = lookup["aoty_slug"]
     
     # Get AOTY data using slug
-    cache_key2 = f"artist_summary:{aoty_slug}"
-    cached2 = await get_cached(cache_key2)
-    if cached2:
-        return cached2
+    cache_key = f"artist_summary:{aoty_slug}"
+    cached = await get_cached(cache_key)
+    if cached:
+        return cached
     
     try:
         data = await run_in_threadpool(aoty.get_artist_summary, aoty_slug)
-        await set_cache(cache_key2, data)
+        await set_cache(cache_key, data)
         return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Scrape failed: {str(e)}")
 
 
-# Mapping table management (Strategy c)
-@app.post("/mapping")
-async def add_mapping(
-    request: Request,
+@app.get("/album/mb/{mb_album_id}")
+async def get_album_by_mb(
+    mb_album_id: str,
     x_api_key: Optional[str] = Header(None)
 ):
+    """Get AOTY album data directly from MusicBrainz release/release-group ID"""
     await verify_api_key(x_api_key)
     
+    # First lookup AOTY slug
+    lookup = await lookup_mb_id(mb_album_id, "release", x_api_key)
+    
+    if not lookup.get("aoty_slug"):
+        # Try release-group
+        lookup = await lookup_mb_id(mb_album_id, "release-group", x_api_key)
+    
+    if not lookup.get("aoty_slug"):
+        raise HTTPException(status_code=404, detail="AOTY album slug not found for this MB ID")
+    
+    aoty_slug = lookup["aoty_slug"]
+    
+    # Get AOTY album data
+    cache_key = f"album:{aoty_slug}"
+    cached = await get_cached(cache_key)
+    if cached:
+        return cached
+    
     try:
-        body = await request.json()
-        mb_id = body.get("mb_artist_id")
-        aoty_slug = body.get("aoty_slug")
-        artist_name = body.get("artist_name", "")
+        # For albums, we need to scrape the AOTY album page
+        url = f"https://www.albumoftheyear.org/album/{aoty_slug}/"
+        page = await run_in_threadpool(
+            lambda: BeautifulSoup(urlopen(Request(url, headers={"User-Agent": "Mozilla/5.0"})).read(), "html.parser")
+        )
         
-        if not mb_id or not aoty_slug:
-            raise HTTPException(status_code=400, detail="mb_artist_id and aoty_slug required")
+        result = {"mb_album_id": mb_album_id, "aoty_slug": aoty_slug, "url": url}
         
-        if DATABASE_URL:
-            try:
-                conn = get_db_conn()
-                cur = conn.cursor()
-                cur.execute("""
-                    INSERT INTO mb_aoty_mapping (mb_artist_id, aoty_slug, artist_name)
-                    VALUES (%s, %s, %s)
-                    ON CONFLICT (mb_artist_id) DO UPDATE SET aoty_slug = EXCLUDED.aoty_slug
-                """, (mb_id, aoty_slug, artist_name))
-                conn.commit()
-                cur.close()
-                conn.close()
-                return {"status": "ok", "mb_artist_id": mb_id, "aoty_slug": aoty_slug}
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-        else:
-            raise HTTPException(status_code=500, detail="Database not configured")
+        # Extract rating
+        rating_elem = page.find(class_="albumRating")
+        if rating_elem:
+            import re
+            match = re.search(r'(\d+\.?\d*)', rating_elem.get_text())
+            if match:
+                result["rating"] = float(match.group(1))
+        
+        # Extract vote count
+        page_text = page.get_text()
+        rating_match = re.search(r'Based on\s+([\d,]+)\s+ratings?', page_text, re.I)
+        if rating_match:
+            result["rating_count"] = int(rating_match.group(1).replace(',', ''))
+        
+        await set_cache(cache_key, result)
+        return result
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid request: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Scrape failed: {str(e)}")
+
 
