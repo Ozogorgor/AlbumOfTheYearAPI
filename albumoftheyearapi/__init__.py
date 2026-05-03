@@ -36,7 +36,7 @@ class AOTY:
         return BeautifulSoup(page, "html.parser")
 
     def artist_critic_score(self, artist_id: str) -> Dict[str, Any]:
-        """Get critic score for artist (score + vote count if available)"""
+        """Get critic score + review count for artist"""
         cache_key = self._get_cache_key(artist_id, 'critic_score')
         cached = self._get_from_cache(cache_key)
         if cached:
@@ -45,27 +45,28 @@ class AOTY:
         url = f"{self.artist_url}{artist_id}/"
         page = self._fetch_page(url)
 
-        result = {"artist_id": artist_id, "critic_score": None, "vote_count": None}
+        result = {"artist_id": artist_id, "critic_score": None, "review_count": None}
 
         # Extract critic score
         critic_elem = page.find(class_="artistCriticScore")
         if critic_elem:
             score_text = critic_elem.get_text(strip=True)
-            # Try to extract numeric score
             import re
             match = re.search(r'(\d+)', score_text)
             if match:
                 result["critic_score"] = int(match.group(1))
 
-        # Extract vote count (if available in page)
-        # Note: AOTY may not expose vote counts directly
-        # This is a placeholder for when available
+        # Extract review count ("Based on X reviews")
+        page_text = page.get_text()
+        review_match = re.search(r'Based on\s+([\d,]+)\s+reviews?', page_text, re.I)
+        if review_match:
+            result["review_count"] = int(review_match.group(1).replace(',', ''))
 
         self._set_cache(cache_key, result)
         return result
 
     def artist_user_score(self, artist_id: str) -> Dict[str, Any]:
-        """Get user score for artist"""
+        """Get user score + rating count for artist"""
         cache_key = self._get_cache_key(artist_id, 'user_score')
         cached = self._get_from_cache(cache_key)
         if cached:
@@ -74,8 +75,9 @@ class AOTY:
         url = f"{self.artist_url}{artist_id}/"
         page = self._fetch_page(url)
 
-        result = {"artist_id": artist_id, "user_score": None, "vote_count": None}
+        result = {"artist_id": artist_id, "user_score": None, "rating_count": None}
 
+        # Extract user score
         user_elem = page.find(class_="artistUserScore")
         if user_elem:
             score_text = user_elem.get_text(strip=True)
@@ -83,6 +85,12 @@ class AOTY:
             match = re.search(r'(\d+)', score_text)
             if match:
                 result["user_score"] = int(match.group(1))
+
+        # Extract rating count ("Based on X ratings")
+        page_text = page.get_text()
+        rating_match = re.search(r'Based on\s+([\d,]+)\s+ratings?', page_text, re.I)
+        if rating_match:
+            result["rating_count"] = int(rating_match.group(1).replace(',', ''))
 
         self._set_cache(cache_key, result)
         return result
