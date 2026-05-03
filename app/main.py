@@ -241,7 +241,7 @@ async def lookup_mb_artist(
                 url = rel.get("url", {}).get("resource", "")
                 if "albumoftheyear.org/artist/" in url:
                     # Extract slug from URL
-                    slug = url.split("/artist/")[-1].rstrip("/")
+                    slug = url.split("/artist/")[-1].strip("/")
                     result["aoty_slug"] = slug
                     result["source"] = "musicbrainz_url-rel"
                     break
@@ -267,6 +267,54 @@ async def lookup_mb_artist(
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lookup failed: {str(e)}")
+
+
+@app.get("/artist/mb/{mb_artist_id}")
+async def get_artist_by_mb(
+    mb_artist_id: str,
+    x_api_key: Optional[str] = Header(None)
+):
+    """Get AOTY artist data directly from MusicBrainz ID"""
+    await verify_api_key(x_api_key)
+    
+    # First lookup AOTY slug
+    cache_key = f"mb_lookup:{mb_artist_id}"
+    cached = await get_cached(cache_key)
+    
+    if cached and cached.get("aoty_slug"):
+        aoty_slug = cached["aoty_slug"]
+    else:
+        # Lookup from MB
+        import httpx
+        mb_url = f"https://musicbrainz.org/ws/2/artist/{mb_artist_id}?fmt=json&inc=url-rels"
+        resp = await run_in_threadpool(
+            lambda: httpx.get(mb_url, headers={"User-Agent": "AOTYScraper/1.0"})
+        )
+        
+        aoty_slug = None
+        if resp.status_code == 200:
+            data = resp.json()
+            for rel in data.get("relations", []):
+                url = rel.get("url", {}).get("resource", "")
+                if "albumoftheyear.org/artist/" in url:
+                    aoty_slug = url.split("/artist/")[-1].strip("/")
+                    break
+        
+        if not aoty_slug:
+            raise HTTPException(status_code=404, detail="AOTY slug not found for this MB ID")
+    
+    # Get AOTY data using slug
+    cache_key2 = f"artist_summary:{aoty_slug}"
+    cached2 = await get_cached(cache_key2)
+    if cached2:
+        return cached2
+    
+    try:
+        data = await run_in_threadpool(aoty.get_artist_summary, aoty_slug)
+        await set_cache(cache_key2, data)
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Scrape failed: {str(e)}")
 
 
 # Mapping table management (Strategy c)
