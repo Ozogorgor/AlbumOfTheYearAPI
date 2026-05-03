@@ -1,4 +1,6 @@
 import json
+import os
+import psycopg2
 from urllib.request import Request, urlopen
 from bs4 import BeautifulSoup
 from typing import Optional, Dict, Any, List
@@ -7,28 +9,55 @@ from datetime import datetime, timedelta
 
 
 class AOTY:
-    """Main API class with caching support"""
+    """Main API class with PostgreSQL caching"""
 
     def __init__(self, cache_ttl: int = 604800):
         self.artist_url = "https://www.albumoftheyear.org/artist/"
         self.cache_ttl = cache_ttl
-        self._cache = {}
+        self.database_url = os.getenv("DATABASE_URL")
 
     def _get_cache_key(self, identifier: str, method: str) -> str:
         return hashlib.md5(f"{identifier}:{method}".encode()).hexdigest()
 
+    def _get_db_conn(self):
+        if self.database_url:
+            return psycopg2.connect(self.database_url, connect_timeout=5)
+        return None
+
     def _get_from_cache(self, key: str) -> Optional[Any]:
-        if key in self._cache:
-            entry = self._cache[key]
-            if datetime.now() - entry['timestamp'] < timedelta(seconds=self.cache_ttl):
-                return entry['data']
+        if not self.database_url:
+            return None
+        try:
+            conn = self._get_db_conn()
+            cur = conn.cursor()
+            cur.execute("SELECT data, cached_at FROM cache WHERE id_key = %s", (key,))
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            if row:
+                data, cached_at = row
+                if datetime.utcnow() - cached_at < timedelta(seconds=self.cache_ttl):
+                    return data
+        except Exception as e:
+            print(f"Cache read error: {e}")
         return None
 
     def _set_cache(self, key: str, data: Any):
-        self._cache[key] = {
-            'data': data,
-            'timestamp': datetime.now()
-        }
+        if not self.database_url:
+            return
+        try:
+            conn = self._get_db_conn()
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO cache (id_key, data, cached_at)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (id_key) DO UPDATE SET data = EXCLUDED.data, cached_at = EXCLUDED.cached_at
+            """, (key, Json(data), datetime.utcnow()))
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            print(f"Cache write error: {e}")
 
     def _fetch_page(self, url: str) -> BeautifulSoup:
         req = Request(url, headers={"User-Agent": "Mozilla/6.0"})
