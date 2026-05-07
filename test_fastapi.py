@@ -105,6 +105,26 @@ def test_aoty_slug_from_url():
     assert f(None) is None
 
 
+def test_aoty_canonical_id():
+    """Numeric prefix is the only routing key; tail is decorative."""
+    f = main.aoty._canonical_aoty_id
+    assert f("2546-dom-family-of-love") == "2546"
+    assert f("183-kanye-west") == "183"
+    assert f("99999") == "99999"
+    assert f("") == ""
+    assert f("no-leading-digits") == "no-leading-digits"
+
+
+def test_aoty_slug_from_final_url():
+    """Album URLs end in .php, artist URLs end in /; both should yield clean slug."""
+    f = main.aoty._slug_from_url
+    assert f("https://www.albumoftheyear.org/album/2546-dom-family-of-love.php") == "2546-dom-family-of-love"
+    assert f("https://www.albumoftheyear.org/artist/183-kanye-west/") == "183-kanye-west"
+    assert f("https://www.albumoftheyear.org/album/2546-dom-family-of-love.php?ref=foo") == "2546-dom-family-of-love"
+    assert f("") is None
+    assert f(None) is None
+
+
 def test_lookup_mb_table_hit(client, fake_db):
     fake_db.fetchone.return_value = ("183-kanye-west", "Kanye West")
     r = client.get(
@@ -183,6 +203,60 @@ def test_album_mb_404_when_no_mapping(client, monkeypatch):
     monkeypatch.setattr(main, "_lookup_via_mb_urlrels", AsyncMock(return_value=None))
     r = client.get("/album/mb/no-mapping", headers={"X-API-Key": "test-secret"})
     assert r.status_code == 404
+
+
+def test_album_mb_self_heals_wrong_slug(client, fake_db, monkeypatch):
+    """When AOTY redirects to a different slug, the wrong mapping is corrected in-place."""
+    # Mapping table returns the wrong-but-pointing-to-correct-numeric-ID slug
+    fake_db.fetchone.return_value = ("105136-lil-wayne-tha-carter-v", "Tha Carter V (stale)")
+    # Scraper reports the canonical slug discovered via redirect
+    monkeypatch.setattr(
+        main.aoty,
+        "album_summary",
+        lambda slug: {
+            "album_slug": slug,
+            "canonical_slug": "105136-la-habitacion-roja-memoria",
+            "title": "Memoria",
+            "critic_score": None,
+            "user_score": 78,
+            "success": True,
+        },
+    )
+    persist = AsyncMock()
+    monkeypatch.setattr(main, "_persist_mapping", persist)
+
+    r = client.get("/album/mb/some-mb-id", headers={"X-API-Key": "test-secret"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["healed_from_slug"] == "105136-lil-wayne-tha-carter-v"
+    assert body["canonical_slug"] == "105136-la-habitacion-roja-memoria"
+    persist.assert_awaited_once()
+    args = persist.await_args.args
+    # _persist_mapping(mb_id, type_, slug, name)
+    assert args[0] == "some-mb-id"
+    assert args[2] == "105136-la-habitacion-roja-memoria"
+
+
+def test_album_mb_no_heal_when_slug_matches(client, fake_db, monkeypatch):
+    """Canonical slug equals stored slug → no DB write."""
+    fake_db.fetchone.return_value = ("2546-dom-family-of-love", "Family of Love")
+    monkeypatch.setattr(
+        main.aoty,
+        "album_summary",
+        lambda slug: {
+            "album_slug": slug,
+            "canonical_slug": "2546-dom-family-of-love",
+            "title": "Family of Love",
+            "success": True,
+        },
+    )
+    persist = AsyncMock()
+    monkeypatch.setattr(main, "_persist_mapping", persist)
+
+    r = client.get("/album/mb/healthy", headers={"X-API-Key": "test-secret"})
+    assert r.status_code == 200
+    assert "healed_from_slug" not in r.json()
+    persist.assert_not_awaited()
 
 
 def test_artists_batch_streams_sse(client, monkeypatch):

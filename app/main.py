@@ -440,6 +440,19 @@ async def get_album_by_mb(
 
     try:
         data = await run_in_threadpool(aoty.album_summary, aoty_slug)
+        canonical = data.get("canonical_slug")
+        # Self-heal: if AOTY redirected us to a different slug, the stored
+        # mapping was wrong (or out of date). Persist the correction so the
+        # next request hits the right URL directly.
+        if (
+            canonical
+            and lookup.get("source") == "mapping_table"
+            and canonical != aoty_slug
+        ):
+            await _persist_mapping(
+                mb_album_id, lookup.get("type"), canonical, data.get("title")
+            )
+            data["healed_from_slug"] = aoty_slug
         await set_cache(cache_key, data)
         return {"mb_album_id": mb_album_id, "lookup_source": lookup.get("source"), **data}
     except Exception as e:

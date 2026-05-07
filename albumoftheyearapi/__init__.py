@@ -68,6 +68,32 @@ class AOTY:
         page = urlopen(req).read()
         return BeautifulSoup(page, "html.parser")
 
+    def _fetch_page_with_url(self, url: str):
+        """Fetch and return (soup, final_url_after_redirects)."""
+        req = Request(url, headers={"User-Agent": "Mozilla/6.0"})
+        resp = urlopen(req)
+        final_url = resp.geturl()
+        page = BeautifulSoup(resp.read(), "html.parser")
+        return page, final_url
+
+    @staticmethod
+    def _canonical_aoty_id(slug: str) -> str:
+        """AOTY routes by leading numeric ID; the rest is decorative."""
+        m = re.match(r"^\d+", slug or "")
+        return m.group(0) if m else (slug or "")
+
+    @staticmethod
+    def _slug_from_url(url: str) -> Optional[str]:
+        """Extract the AOTY slug from a final URL (handles .php and / endings)."""
+        if not url:
+            return None
+        url = url.split("?", 1)[0].split("#", 1)[0]
+        if url.endswith(".php"):
+            url = url[:-4]
+        url = url.rstrip("/")
+        tail = url.rsplit("/", 1)[-1]
+        return tail or None
+
     def artist_critic_score(self, artist_id: str) -> Dict[str, Any]:
         """Get critic score + review count for artist"""
         cache_key = self._get_cache_key(artist_id, 'critic_score')
@@ -230,16 +256,23 @@ class AOTY:
             return None
 
     def album_summary(self, album_slug: str) -> Dict[str, Any]:
-        """Scrape critic + user score and counts from an AOTY album page."""
+        """Scrape critic + user score and counts from an AOTY album page.
+
+        Sends the request with just the leading numeric ID; AOTY redirects to
+        the canonical slug, which is captured in result["canonical_slug"] so
+        callers can repair stale mapping-table entries.
+        """
         cache_key = self._get_cache_key(album_slug, 'album_summary')
         cached = self._get_from_cache(cache_key)
         if cached:
             return cached
 
-        url = f"{self.album_url}{album_slug}/"
+        canonical_id = self._canonical_aoty_id(album_slug)
+        request_url = f"{self.album_url}{canonical_id}/"
         result = {
             "album_slug": album_slug,
-            "url": url,
+            "canonical_slug": None,
+            "url": request_url,
             "title": None,
             "artist": None,
             "critic_score": None,
@@ -253,10 +286,13 @@ class AOTY:
         }
 
         try:
-            page = self._fetch_page(url)
+            page, final_url = self._fetch_page_with_url(request_url)
         except Exception as e:
             result["error"] = f"fetch failed: {e}"
             return result
+
+        result["url"] = final_url
+        result["canonical_slug"] = self._slug_from_url(final_url)
 
         title_elem = page.find("h1", class_="albumTitle")
         if title_elem:
