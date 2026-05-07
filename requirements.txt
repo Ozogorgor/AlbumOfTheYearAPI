@@ -2,5 +2,8 @@ fastapi
 uvicorn
 beautifulsoup4
 requests
+httpx
 psycopg2-binary
 python-dotenv
+pytest
+pytest-asyncio
