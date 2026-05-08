@@ -275,6 +275,7 @@ class AOTY:
             "url": request_url,
             "title": None,
             "artist": None,
+            "genre": None,
             "critic_score": None,
             "critic_score_precise": None,
             "review_count": None,
@@ -358,6 +359,20 @@ class AOTY:
                         result["rating_count"] = int(strong.get_text(strip=True).replace(",", ""))
                     except ValueError:
                         pass
+
+        # Genre — single primary genre per album, exposed on AOTY as
+        # `<a href="/genre/N-slug/">Display Name</a>` inside one of the
+        # `.detailRow` rows under the album header. Cleaner than
+        # Last.fm/MB tag clouds (no "album" / "favorite" noise).
+        # Scoped to detailRows so unrelated /genre/ links elsewhere on
+        # the page (sidebar, recommendations) can't false-positive.
+        for row in page.find_all("div", class_="detailRow"):
+            link = row.find("a", href=lambda h: h and h.startswith("/genre/"))
+            if link:
+                txt = link.get_text(strip=True)
+                if txt:
+                    result["genre"] = txt
+                    break
 
         if result["critic_score"] is not None or result["user_score"] is not None:
             result["success"] = True
